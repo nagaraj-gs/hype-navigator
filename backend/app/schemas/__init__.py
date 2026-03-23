@@ -15,6 +15,7 @@ from app.schemas.dashboard import (
     ReplayEventOut,
     TrendPointOut,
 )
+from app.schemas.social import SocialFetchRequest, SocialFetchResponse, SocialPostOut
 
 __all__ = [
     "APIMessage",
@@ -33,4 +34,7 @@ __all__ = [
     "InfluencerOut",
     "ReplayEventOut",
     "TrendPointOut",
+    "SocialFetchRequest",
+    "SocialFetchResponse",
+    "SocialPostOut",
 ]

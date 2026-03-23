@@ -10,6 +10,8 @@ import Trends from "./pages/Trends.tsx";
 import Alerts from "./pages/Alerts.tsx";
 import Replay from "./pages/Replay.tsx";
 import Influence from "./pages/Influence.tsx";
+import Report from "./pages/Report.tsx";
+import Playground from "./pages/Playground.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -27,6 +29,8 @@ const App = () => (
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/replay" element={<Replay />} />
           <Route path="/influence" element={<Influence />} />
+          <Route path="/playground" element={<Playground />} />
+          <Route path="/report" element={<Report />} />
           <Route path="/coin/:coinId" element={<CoinDetail />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

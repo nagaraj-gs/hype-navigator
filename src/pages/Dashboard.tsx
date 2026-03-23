@@ -6,6 +6,7 @@ import MetricCards from "@/components/dashboard/MetricCards";
 import TrendChart from "@/components/dashboard/TrendChart";
 import HypeReplay from "@/components/dashboard/HypeReplay";
 import InfluenceRadar from "@/components/dashboard/InfluenceRadar";
+import InfluenceReport from "@/components/dashboard/InfluenceReport";
 import AlertPanel from "@/components/dashboard/AlertPanel";
 import TrendingCoins from "@/components/dashboard/TrendingCoins";
 
@@ -28,6 +29,7 @@ const Dashboard = () => {
         />
         
         <main className="flex-1 overflow-y-auto p-6 space-y-6">
+
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
             <MetricCards />
           </motion.div>
