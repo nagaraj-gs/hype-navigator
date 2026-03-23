@@ -22,3 +22,10 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python backend artifacts
+backend/.venv/
+backend/__pycache__/
+backend/**/*.pyc
+backend/.env
+backend/hype_navigator.db

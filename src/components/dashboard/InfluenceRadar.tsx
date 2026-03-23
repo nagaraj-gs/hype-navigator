@@ -1,22 +1,59 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { fetchJson } from "@/lib/api";
 
-const nodes = [
-  { id: 1, x: 50, y: 45, size: 32, label: "CryptoKing", score: 94, posts: 142 },
-  { id: 2, x: 22, y: 25, size: 22, label: "DegenTrader", score: 72, posts: 89 },
-  { id: 3, x: 78, y: 20, size: 26, label: "WhaleAlert", score: 88, posts: 201 },
-  { id: 4, x: 18, y: 72, size: 18, label: "MemeHunter", score: 65, posts: 56 },
-  { id: 5, x: 80, y: 68, size: 24, label: "AlphaLeaks", score: 81, posts: 167 },
-  { id: 6, x: 55, y: 18, size: 14, label: "ShibArmy", score: 45, posts: 34 },
-  { id: 7, x: 35, y: 55, size: 16, label: "NFTGuru", score: 58, posts: 78 },
-  { id: 8, x: 65, y: 75, size: 20, label: "PumpBot", score: 32, posts: 245 },
-];
+type RadarNode = {
+  id: number;
+  x: number;
+  y: number;
+  size: number;
+  handle: string;
+  impact_score: number;
+  posts_24h: number;
+};
 
-const edges = [
-  [1, 2], [1, 3], [1, 5], [1, 7], [2, 4], [3, 6], [5, 8], [7, 4], [3, 5],
+const fallbackNodes: RadarNode[] = [
+  { id: 1, x: 50, y: 45, size: 32, handle: "CryptoKing", impact_score: 94, posts_24h: 142 },
+  { id: 2, x: 22, y: 25, size: 22, handle: "DegenTrader", impact_score: 72, posts_24h: 89 },
+  { id: 3, x: 78, y: 20, size: 26, handle: "WhaleAlert", impact_score: 88, posts_24h: 201 },
+  { id: 4, x: 18, y: 72, size: 18, handle: "MemeHunter", impact_score: 65, posts_24h: 56 },
+  { id: 5, x: 80, y: 68, size: 24, handle: "AlphaLeaks", impact_score: 81, posts_24h: 167 },
 ];
 
 const InfluenceRadar = () => {
+  const [nodes, setNodes] = useState<RadarNode[]>(fallbackNodes);
   const [hovered, setHovered] = useState<number | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const load = async () => {
+      try {
+        const payload = await fetchJson<RadarNode[]>("/influence/radar");
+        if (mounted && payload.length > 0) {
+          setNodes(payload);
+        }
+      } catch {
+        // Keep fallback nodes when backend is unavailable.
+      }
+    };
+
+    void load();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const edges = useMemo(() => {
+    if (nodes.length < 2) return [] as number[][];
+    const center = nodes[0].id;
+    const starEdges = nodes.slice(1).map((node) => [center, node.id]);
+    const chainEdges = nodes.slice(1).map((node, index) => {
+      if (index === 0) return null;
+      return [nodes[index].id, node.id];
+    }).filter((edge): edge is number[] => edge !== null);
+    return [...starEdges, ...chainEdges];
+  }, [nodes]);
 
   return (
     <div className="glass rounded-2xl p-6 glow-border-secondary h-full">
@@ -67,9 +104,9 @@ const InfluenceRadar = () => {
 
             {hovered === n.id && (
               <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 glass-strong rounded-lg px-3 py-2 whitespace-nowrap z-20 animate-fade-in">
-                <div className="text-xs font-semibold text-foreground">@{n.label}</div>
-                <div className="text-[10px] text-muted-foreground">Impact: {n.score}/100</div>
-                <div className="text-[10px] text-muted-foreground">{n.posts} posts</div>
+                <div className="text-xs font-semibold text-foreground">@{n.handle}</div>
+                <div className="text-[10px] text-muted-foreground">Impact: {n.impact_score}/100</div>
+                <div className="text-[10px] text-muted-foreground">{n.posts_24h} posts</div>
               </div>
             )}
           </div>

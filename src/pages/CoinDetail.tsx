@@ -1,15 +1,63 @@
+import { useEffect, useMemo, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowLeft, TrendingUp, TrendingDown, Activity, ShieldCheck, AlertTriangle, Zap, ExternalLink, Users, MessageSquare, BarChart3, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, BarChart, Bar, PieChart, Pie, Cell } from "recharts";
 
-const coinData: Record<string, any> = {
-  DOGE: { name: "Dogecoin", symbol: "$DOGE", hype: 78, trust: 87, risk: "Medium", prediction: "Up", confidence: 73, change: "+12.4%", price: "$0.1823", volume: "$2.4B", marketCap: "$24.1B", sentiment: 72 },
-  PEPE: { name: "Pepe", symbol: "$PEPE", hype: 92, trust: 45, risk: "High", prediction: "Down", confidence: 61, change: "-8.2%", price: "$0.0000124", volume: "$890M", marketCap: "$5.2B", sentiment: 38 },
-  SHIB: { name: "Shiba Inu", symbol: "$SHIB", hype: 65, trust: 71, risk: "Low", prediction: "Up", confidence: 68, change: "+5.1%", price: "$0.0000281", volume: "$1.1B", marketCap: "$16.5B", sentiment: 65 },
-  WIF: { name: "dogwifhat", symbol: "$WIF", hype: 88, trust: 52, risk: "Medium", prediction: "Up", confidence: 55, change: "+22.7%", price: "$2.41", volume: "$540M", marketCap: "$2.4B", sentiment: 58 },
-  BONK: { name: "Bonk", symbol: "$BONK", hype: 71, trust: 23, risk: "Critical", prediction: "Down", confidence: 82, change: "-15.3%", price: "$0.0000312", volume: "$320M", marketCap: "$2.1B", sentiment: 25 },
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000/api/v1";
+
+type DexPair = {
+  url?: string | null;
+};
+
+type CoinDetailResponse = {
+  symbol: string;
+  name: string;
+  price: number;
+  market_cap: number;
+  volume_24h: number;
+  change_24h: number;
+  hype_score: number;
+  trust_score: number;
+  sentiment_score: number;
+  prediction: string;
+  prediction_confidence: number;
+  risk_level: string;
+  dex_pair?: DexPair | null;
+  price_source?: string;
+};
+
+type CoinInfluencer = {
+  handle: string;
+  followers: number;
+  trust_score: number;
+  impact_score: number;
+  posts_24h: number;
+};
+
+type CoinAlert = {
+  title: string;
+  message: string;
+  severity: string;
+  created_at: string;
+};
+
+const fallbackCoin: CoinDetailResponse = {
+  symbol: "DOGE",
+  name: "Dogecoin",
+  price: 0.1823,
+  market_cap: 24100000000,
+  volume_24h: 2400000000,
+  change_24h: 12.4,
+  hype_score: 78,
+  trust_score: 87,
+  sentiment_score: 72,
+  prediction: "Up",
+  prediction_confidence: 73,
+  risk_level: "Medium",
+  dex_pair: null,
+  price_source: "local_db",
 };
 
 const priceHistory = [
@@ -46,6 +94,38 @@ const recentAlerts = [
   { type: "info", title: "Trending on Twitter", time: "5h ago", detail: "Entered top 10 crypto trending topics globally" },
 ];
 
+const formatCompactNumber = (value: number): string =>
+  new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+
+const formatPrice = (value: number): string => {
+  if (value < 0.01) {
+    return `$${value.toFixed(6)}`;
+  }
+  return `$${value.toFixed(4)}`;
+};
+
+const formatPercent = (value: number): string => `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+
+const severityToAlertType = (severity: string): string => {
+  const normalized = severity.toLowerCase();
+  if (normalized === "critical") return "danger";
+  if (normalized === "high" || normalized === "medium") return "warning";
+  return "info";
+};
+
+const timeAgo = (timestamp: string): string => {
+  const diffMs = Date.now() - new Date(timestamp).getTime();
+  const minutes = Math.max(1, Math.floor(diffMs / 60000));
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
+
 const alertColors: Record<string, string> = {
   danger: "border-destructive/30 bg-destructive/5 text-destructive",
   warning: "border-warning/30 bg-warning/5 text-warning",
@@ -79,7 +159,107 @@ const ScoreRing = ({ value, size = 80, strokeWidth = 6, color }: { value: number
 
 const CoinDetail = () => {
   const { coinId } = useParams();
-  const coin = coinData[coinId?.toUpperCase() || "DOGE"] || coinData.DOGE;
+  const symbol = (coinId || "DOGE").toUpperCase();
+
+  const [coinDetails, setCoinDetails] = useState<CoinDetailResponse | null>(null);
+  const [coinInfluencers, setCoinInfluencers] = useState(topInfluencers);
+  const [coinAlerts, setCoinAlerts] = useState(recentAlerts);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchCoinData = async () => {
+      setIsLoading(true);
+      setErrorMessage(null);
+
+      try {
+        const [detailsRes, influencersRes, alertsRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/coins/${symbol}`),
+          fetch(`${API_BASE_URL}/coins/${symbol}/influencers`),
+          fetch(`${API_BASE_URL}/coins/${symbol}/alerts`),
+        ]);
+
+        if (!detailsRes.ok) {
+          throw new Error(`Failed to load coin details for ${symbol}`);
+        }
+
+        const detailsPayload = (await detailsRes.json()) as CoinDetailResponse;
+
+        if (mounted) {
+          setCoinDetails(detailsPayload);
+        }
+
+        if (influencersRes.ok) {
+          const influencersPayload = (await influencersRes.json()) as CoinInfluencer[];
+          if (mounted && influencersPayload.length > 0) {
+            setCoinInfluencers(
+              influencersPayload.map((inf) => ({
+                name: inf.handle,
+                followers: formatCompactNumber(inf.followers),
+                sentiment: inf.trust_score >= 75 ? "Bullish" : inf.trust_score >= 55 ? "Neutral" : "Bearish",
+                impact: inf.impact_score,
+                posts: inf.posts_24h,
+              }))
+            );
+          }
+        }
+
+        if (alertsRes.ok) {
+          const alertsPayload = (await alertsRes.json()) as CoinAlert[];
+          if (mounted && alertsPayload.length > 0) {
+            setCoinAlerts(
+              alertsPayload.slice(0, 6).map((alert) => ({
+                type: severityToAlertType(alert.severity),
+                title: alert.title,
+                time: timeAgo(alert.created_at),
+                detail: alert.message,
+              }))
+            );
+          }
+        }
+      } catch (error) {
+        if (mounted) {
+          setErrorMessage(error instanceof Error ? error.message : "Unable to load live coin details.");
+          setCoinDetails(null);
+        }
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void fetchCoinData();
+
+    return () => {
+      mounted = false;
+    };
+  }, [symbol]);
+
+  const activeCoin = coinDetails || fallbackCoin;
+
+  const coin = useMemo(
+    () => ({
+      name: activeCoin.name,
+      symbol: `$${activeCoin.symbol}`,
+      hype: activeCoin.hype_score,
+      trust: activeCoin.trust_score,
+      risk: activeCoin.risk_level,
+      prediction: activeCoin.prediction,
+      confidence: activeCoin.prediction_confidence,
+      change: formatPercent(activeCoin.change_24h),
+      price: formatPrice(activeCoin.price),
+      volume: `$${formatCompactNumber(activeCoin.volume_24h)}`,
+      marketCap: `$${formatCompactNumber(activeCoin.market_cap)}`,
+      sentiment: activeCoin.sentiment_score,
+      dexUrl: activeCoin.dex_pair?.url || null,
+      source: activeCoin.price_source || "local_db",
+    }),
+    [activeCoin]
+  );
+
   const isUp = coin.prediction === "Up";
   const riskColors: Record<string, string> = { Low: "text-success", Medium: "text-warning", High: "text-destructive", Critical: "text-destructive" };
 
@@ -92,7 +272,7 @@ const CoinDetail = () => {
         </Link>
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center glow-primary">
-            <span className="text-xs font-bold text-foreground">{coinId?.charAt(0)}</span>
+            <span className="text-xs font-bold text-foreground">{symbol.charAt(0)}</span>
           </div>
           <div>
             <h1 className="text-sm font-bold text-foreground">{coin.name} <span className="text-muted-foreground font-normal">{coin.symbol}</span></h1>
@@ -103,11 +283,30 @@ const CoinDetail = () => {
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <Button variant="ghost" size="sm" className="text-xs gap-1"><ExternalLink className="w-3 h-3" />CoinGecko</Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-xs gap-1"
+            disabled={!coin.dexUrl}
+            onClick={() => {
+              if (coin.dexUrl) {
+                window.open(coin.dexUrl, "_blank", "noopener,noreferrer");
+              }
+            }}
+          >
+            <ExternalLink className="w-3 h-3" />
+            DexScreener
+          </Button>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto p-6 space-y-6">
+        {(isLoading || errorMessage) && (
+          <div className={`rounded-xl border px-4 py-3 text-xs ${errorMessage ? "border-warning/30 bg-warning/10 text-warning" : "border-primary/30 bg-primary/10 text-primary"}`}>
+            {isLoading ? `Loading real-time ${symbol} data...` : `${errorMessage}. Showing fallback values.`}
+          </div>
+        )}
+
         {/* Score cards row */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
@@ -207,7 +406,7 @@ const CoinDetail = () => {
           {/* Key stats */}
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="glass rounded-2xl p-6 glow-border">
             <h3 className="text-sm font-semibold text-foreground mb-1">Key Stats</h3>
-            <p className="text-xs text-muted-foreground mb-4">Market overview</p>
+            <p className="text-xs text-muted-foreground mb-4">Market overview ({coin.source})</p>
             <div className="space-y-4">
               {[
                 { label: "Market Cap", value: coin.marketCap, icon: BarChart3 },
@@ -243,7 +442,7 @@ const CoinDetail = () => {
                 </tr>
               </thead>
               <tbody>
-                {topInfluencers.map((inf) => (
+                {coinInfluencers.map((inf) => (
                   <tr key={inf.name} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                     <td className="py-3 font-semibold text-foreground">@{inf.name}</td>
                     <td className="py-3 text-muted-foreground">{inf.followers}</td>
@@ -275,7 +474,7 @@ const CoinDetail = () => {
           <h3 className="text-sm font-semibold text-foreground mb-1">🚨 Recent Alerts</h3>
           <p className="text-xs text-muted-foreground mb-4">Activity signals for {coin.symbol}</p>
           <div className="space-y-3">
-            {recentAlerts.map((a, i) => (
+            {coinAlerts.map((a, i) => (
               <div key={i} className={`p-3 rounded-xl border ${alertColors[a.type]} transition-all hover:scale-[1.01]`}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-xs font-semibold">{a.title}</span>

@@ -1,15 +1,61 @@
 import { useState, useEffect, useRef } from "react";
 import { Play, Pause, SkipBack, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { fetchJson } from "@/lib/api";
 
-const data = [20, 28, 25, 35, 50, 85, 95, 80, 60, 45, 38, 55, 72, 90, 65, 48, 52, 70, 62, 40];
+const fallbackData = [20, 28, 25, 35, 50, 85, 95, 80, 60, 45, 38, 55, 72, 90, 65, 48, 52, 70, 62, 40];
 
-const labels = ["Day 1", "", "", "", "Day 5", "", "", "", "", "Day 10", "", "", "", "", "Day 15", "", "", "", "", "Day 20"];
+type TrendPoint = {
+  ts: string;
+  mentions: number;
+};
+
+const normalizeMentionsToPercent = (values: number[]) => {
+  if (values.length === 0) return fallbackData;
+  const max = Math.max(...values);
+  const min = Math.min(...values);
+  if (max === min) return values.map(() => 60);
+  return values.map((v) => Math.max(15, Math.round(((v - min) / (max - min)) * 100)));
+};
+
+const fallbackLabels = ["Day 1", "", "", "", "Day 5", "", "", "", "", "Day 10", "", "", "", "", "Day 15", "", "", "", "", "Day 20"];
 
 const HypeReplay = () => {
+  const [data, setData] = useState(fallbackData);
+  const [labels, setLabels] = useState(fallbackLabels);
   const [playing, setPlaying] = useState(false);
   const [position, setPosition] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const load = async () => {
+      try {
+        const payload = await fetchJson<TrendPoint[]>("/dashboard/trend-chart?symbol=DOGE&limit=20");
+        if (!mounted || payload.length === 0) return;
+
+        const ordered = payload.slice().reverse();
+        const mentionValues = ordered.map((point) => point.mentions);
+        const normalized = normalizeMentionsToPercent(mentionValues);
+        const dynamicLabels = ordered.map((point, index) => {
+          if (index % 4 !== 0 && index !== ordered.length - 1) return "";
+          return new Date(point.ts).toLocaleDateString([], { month: "short", day: "numeric" });
+        });
+
+        setData(normalized);
+        setLabels(dynamicLabels);
+      } catch {
+        // Keep fallback replay values when backend is unavailable.
+      }
+    };
+
+    void load();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (playing) {
@@ -35,7 +81,7 @@ const HypeReplay = () => {
       <div className="flex items-center justify-between mb-5">
         <div>
           <h3 className="text-sm font-semibold text-foreground">⏳ Hype Replay</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">$DOGE • Last 20 days</p>
+          <p className="text-xs text-muted-foreground mt-0.5">$DOGE • Mentions replay</p>
         </div>
         <div className="text-right">
           <div className={`text-lg font-bold font-mono ${isPeak ? "text-warning" : "text-primary"}`}>
