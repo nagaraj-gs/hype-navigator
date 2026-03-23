@@ -4,10 +4,10 @@ import { cn } from "@/lib/utils";
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard" },
-  { icon: TrendingUp, label: "Trends", path: "/dashboard" },
-  { icon: Bell, label: "Alerts", path: "/dashboard" },
-  { icon: History, label: "Replay", path: "/dashboard" },
-  { icon: Radio, label: "Influence", path: "/dashboard" },
+  { icon: TrendingUp, label: "Trends", path: "/trends" },
+  { icon: Bell, label: "Alerts", path: "/alerts" },
+  { icon: History, label: "Replay", path: "/replay" },
+  { icon: Radio, label: "Influence", path: "/influence" },
 ];
 
 interface Props {
@@ -40,7 +40,7 @@ const DashboardSidebar = ({ collapsed, onToggle }: Props) => {
       {/* Nav */}
       <nav className="flex-1 py-4 px-2 space-y-1">
         {navItems.map((item) => {
-          const active = location.pathname === item.path && item.label === "Dashboard";
+          const active = location.pathname === item.path;
           return (
             <Link
               key={item.label}
