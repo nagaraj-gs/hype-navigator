@@ -3,7 +3,9 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import RequireWalletAuth from "./components/RequireWalletAuth.tsx";
 import Index from "./pages/Index.tsx";
+import Login from "./pages/Login.tsx";
 import Dashboard from "./pages/Dashboard.tsx";
 import CoinDetail from "./pages/CoinDetail.tsx";
 import Trends from "./pages/Trends.tsx";
@@ -24,14 +26,19 @@ const App = () => (
       <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/trends" element={<Trends />} />
-          <Route path="/alerts" element={<Alerts />} />
-          <Route path="/replay" element={<Replay />} />
-          <Route path="/influence" element={<Influence />} />
-          <Route path="/playground" element={<Playground />} />
-          <Route path="/report" element={<Report />} />
-          <Route path="/coin/:coinId" element={<CoinDetail />} />
+          <Route path="/login" element={<Login />} />
+
+          <Route element={<RequireWalletAuth />}>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/trends" element={<Trends />} />
+            <Route path="/alerts" element={<Alerts />} />
+            <Route path="/replay" element={<Replay />} />
+            <Route path="/influence" element={<Influence />} />
+            <Route path="/playground" element={<Playground />} />
+            <Route path="/report" element={<Report />} />
+            <Route path="/coin/:coinId" element={<CoinDetail />} />
+          </Route>
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
